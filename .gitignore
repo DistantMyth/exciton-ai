@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Rust
+target/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# plasma-ai: generated session/harness state (do not commit)
+harness/.session.env
+harness/.session.pids
+harness/.logs/
+
+# Node (if any tooling lands later)
+node_modules/

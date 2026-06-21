@@ -1,0 +1,98 @@
+<!--
+  Contract: CONTRACT-002
+  Status:    DRAFT
+  Version:   0.1.0
+  Author:    @anuj (Role A)
+  Consumed:  @srujan (Role B) — generates client bindings
+  Notes:     This is the introspection XML for org.kde.PlasmaShell.Introspect, the new
+             D-Bus interface Anuj adds to plasmashell. Per ADR-0001, the interface lives in
+             the plasma-workspace fork; the Plasma::Applet base virtuals it calls live in
+             the libplasma fork. Srujan reads this to generate client bindings. Bump
+             Version + open an ADR on any signature change. The methods below are the
+             proposed v0.1 surface — to be signed off before Anuj implements in C++ and
+             Srujan binds.
+-->
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node>
+
+  <!--
+    Containments: panels, desktop, folder view. Returns an array of containment IDs
+    (see docs/contracts/element-ids.md, type "wgt:" parent context).
+  -->
+  <interface name="org.kde.PlasmaShell.Introspect">
+
+    <!-- Build/version of the introspection interface, for adaptive clients (Role B). -->
+    <property name="Version" type="s" access="read"/>
+
+    <!--
+      listContainments() -> a(s)  (array of containment element-IDs, e.g. ["desktop","panel1"])
+    -->
+    <method name="listContainments">
+      <arg name="containments" type="as" direction="out"/>
+    </method>
+
+    <!--
+      listApplets(containment:s) -> a(s)  (array of applet element-IDs, e.g.
+      ["wgt:desktop/clock","wgt:desktop/launcher"])
+    -->
+    <method name="listApplets">
+      <arg name="containment" type="s" direction="in"/>
+      <arg name="applets" type="as" direction="out"/>
+    </method>
+
+    <!--
+      appletInfo(id:s, fields:as) -> s
+      Returns a JSON string describing the applet, projected to the requested fields.
+      Recognized fields: "plugin","name","geometry","state","zorder","capabilities","actions".
+      Unknown fields ignored. Empty fields[] = minimal default set.
+    -->
+    <method name="appletInfo">
+      <arg name="id" type="s" direction="in"/>
+      <arg name="fields" type="as" direction="in"/>
+      <arg name="info" type="s" direction="out"/>
+    </method>
+
+    <!--
+      appletCapabilities(id:s) -> s  (JSON: {"capabilities":["Draggable","Rotatable",...],
+                                              "actions":[{"name":..., "schema":...}]})
+    -->
+    <method name="appletCapabilities">
+      <arg name="id" type="s" direction="in"/>
+      <arg name="caps" type="s" direction="out"/>
+    </method>
+
+    <!--
+      appletDescribe(id:s, depth:s) -> s
+      Returns the applet's semantic markdown self-description (Applet::describeSelf()).
+      depth ∈ {"bar","sidebar","menu","full"} — mirrors the Layer 1 depth contract.
+    -->
+    <method name="appletDescribe">
+      <arg name="id" type="s" direction="in"/>
+      <arg name="depth" type="s" direction="in"/>
+      <arg name="markdown" type="s" direction="out"/>
+    </method>
+
+    <!--
+      appletTransform(id:s, op:s, args:s) -> s
+      op ∈ {"move","resize","rotate","remove"}. args is a JSON object (e.g. {"x":..,"deg":40}).
+      Returns a JSON result: {"ok":bool,"error":?,"supported":?}.
+      Implements the Layer 2 widget_transform contract; rejects unsupported transforms.
+    -->
+    <method name="appletTransform">
+      <arg name="id" type="s" direction="in"/>
+      <arg name="op" type="s" direction="in"/>
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+
+    <!--
+      globalCapabilities() -> s  (JSON array of every capability/action the central
+      registry knows — backs introspect_capabilities() on the MCP server.)
+    -->
+    <method name="globalCapabilities">
+      <arg name="caps" type="s" direction="out"/>
+    </method>
+
+  </interface>
+</node>

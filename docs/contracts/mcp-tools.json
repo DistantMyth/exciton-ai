@@ -1,0 +1,287 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": [
+    "Contract: CONTRACT-003",
+    "Status:    DRAFT",
+    "Version:   0.1.0",
+    "Author:    Role B",
+    "Consumed:  Role C (orchestrator is the MCP client).",
+    "This file lists the JSON-Schemas for every MCP tool the plasma-ai server exposes.",
+    "Layer 1 = queries (nouns), Layer 2 = actions (verbs), plus assert_state.",
+    "Each tool object below mirrors what an MCP client sees in tools/list."
+  ],
+  "contractId": "CONTRACT-003",
+  "version": "0.1.0",
+  "elementIdContract": "CONTRACT-001",
+
+  "tools": {
+    "list_desktops": {
+      "description": "Count and list virtual desktops/workspaces; mark the current one.",
+      "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
+      "output": {
+        "type": "object",
+        "properties": {
+          "count": { "type": "integer" },
+          "current": { "type": "string", "$comment": "element-id of type desktop:" },
+          "desktops": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": { "id": { "type": "string" }, "name": { "type": "string" } },
+              "required": ["id"]
+            }
+          }
+        },
+        "required": ["count", "current", "desktops"]
+      }
+    },
+
+    "list_windows": {
+      "description": "List windows on a given desktop (or current/all), returning only requested fields.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "desktop": { "type": "string", "default": "current", "$comment": "element-id | 'current' | 'all'" },
+          "fields": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["name", "geometry", "focused", "zorder", "app", "state", "actions"] },
+            "default": [],
+            "$comment": "Empty = minimal default set"
+          }
+        }
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "windows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "geometry": { "type": "object", "properties": { "x": {"type":"number"}, "y": {"type":"number"}, "w": {"type":"number"}, "h": {"type":"number"} } },
+                "focused": { "type": "boolean" },
+                "zorder": { "type": "integer" },
+                "app": { "type": "string" },
+                "state": { "type": "string" },
+                "actions": { "type": "array", "items": { "type": "string" } }
+              },
+              "required": ["id"]
+            }
+          }
+        },
+        "required": ["windows"]
+      }
+    },
+
+    "get_window": {
+      "description": "Get one window by id, projected to requested fields.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "id": { "type": "string" }, "fields": { "type": "array", "items": { "type": "string" }, "default": [] } },
+        "required": ["id"]
+      },
+      "output": { "$ref": "#/tools/list_windows/output/properties/windows/items" }
+    },
+
+    "get_window_contents": {
+      "description": "Semantic markdown of a window's UI, depth-scoped: bar < sidebar < menu < full.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "depth": { "type": "string", "enum": ["bar", "sidebar", "menu", "full"], "default": "bar" },
+          "include_tooltips": { "type": "boolean", "default": false }
+        },
+        "required": ["id"]
+      },
+      "output": { "type": "object", "properties": { "id": { "type": "string" }, "markdown": { "type": "string" } }, "required": ["id", "markdown"] }
+    },
+
+    "get_element_tree": {
+      "description": "AT-SPI (or fork) subtree as indented markdown with element-ids; depth-scoped, prunable.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "root": { "type": "string", "$comment": "element-id or 'window:<id>'" },
+          "depth": { "type": "string", "enum": ["bar", "sidebar", "menu", "full"], "default": "menu" },
+          "prune": { "type": "array", "items": { "type": "string" }, "default": [] },
+          "fields": { "type": "array", "items": { "type": "string" }, "default": [] }
+        },
+        "required": ["root"]
+      },
+      "output": { "type": "object", "properties": { "markdown": { "type": "string" } }, "required": ["markdown"] }
+    },
+
+    "get_element": {
+      "description": "One element, full detail; optionally include hover/tooltip.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "id": { "type": "string" }, "include_tooltips": { "type": "boolean", "default": false } },
+        "required": ["id"]
+      },
+      "output": { "type": "object", "properties": { "id": { "type": "string" }, "markdown": { "type": "string" } }, "required": ["id", "markdown"] }
+    },
+
+    "get_actions": {
+      "description": "Supported actions for an element/window/widget, each with a param schema.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "target": { "type": "string", "$comment": "element-id | window-id | widget-id" } },
+        "required": ["target"]
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "target": { "type": "string" },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": { "name": { "type": "string" }, "schema": { "type": "object" } },
+              "required": ["name", "schema"]
+            }
+          }
+        },
+        "required": ["target", "actions"]
+      }
+    },
+
+    "list_widgets": {
+      "description": "List Plasma applets/widgets in a containment, projected to fields.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "containment": { "type": "string", "default": "desktop", "$comment": "'desktop' | 'panel' | element-id" },
+          "fields": { "type": "array", "items": { "type": "string" }, "default": [] }
+        }
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "widgets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "plugin": { "type": "string" },
+                "name": { "type": "string" },
+                "geometry": { "type": "object" },
+                "capabilities": { "type": "array", "items": { "type": "string" } }
+              },
+              "required": ["id"]
+            }
+          }
+        },
+        "required": ["widgets"]
+      }
+    },
+
+    "get_widget": {
+      "description": "One widget, full detail.",
+      "inputSchema": { "type": "object", "properties": { "id": { "type": "string" }, "fields": { "type": "array", "items": { "type": "string" }, "default": [] } }, "required": ["id"] },
+      "output": { "$ref": "#/tools/list_widgets/output/properties/widgets/items" }
+    },
+
+    "describe_hover": {
+      "description": "Tooltip / hover-detail semantics for an element.",
+      "inputSchema": { "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"] },
+      "output": { "type": "object", "properties": { "id": { "type": "string" }, "detail": { "type": "string" } }, "required": ["id", "detail"] }
+    },
+
+    "introspect_capabilities": {
+      "description": "Live, versioned enumeration of what THIS build supports (tools + capabilities). Backs agent discovery.",
+      "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
+      "output": { "type": "object", "properties": { "version": { "type": "string" }, "capabilities": { "type": "object" }, "tools": { "type": "array", "items": { "type": "string" } } }, "required": ["version", "capabilities", "tools"] }
+    },
+
+    "screenshot": {
+      "description": "Escape hatch ONLY. Discouraged. Logged as fallback. Optional region.",
+      "inputSchema": { "type": "object", "properties": { "region": { "type": "object", "properties": { "x":{"type":"number"},"y":{"type":"number"},"w":{"type":"number"},"h":{"type":"number"} } } } },
+      "output": { "type": "object", "properties": { "image_b64": { "type": "string" } } }
+    },
+
+    "invoke_action": {
+      "description": "Layer 2. Generic action dispatch (AT-SPI DoAction + registered). On unsupported, returns structured error listing supported actions.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "element_id": { "type": "string" }, "action": { "type": "string" }, "args": { "type": "object", "default": {} } },
+        "required": ["element_id", "action"]
+      },
+      "output": {
+        "type": "object",
+        "properties": { "ok": { "type": "boolean" }, "error": { "type": "string" }, "supported": { "type": "array", "items": { "type": "string" }, "$comment": "populated when ok=false due to unsupported action" } },
+        "required": ["ok"]
+      }
+    },
+
+    "window_tile": {
+      "description": "Layer 2. Tile/maximize/minimize/fullscreen a window via KWin.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "id": { "type": "string" }, "side": { "type": "string", "enum": ["left", "right", "top", "bottom", "maximize", "minimize", "fullscreen"] } },
+        "required": ["id", "side"]
+      },
+      "output": { "type": "object", "properties": { "ok": { "type": "boolean" }, "error": { "type": "string" } }, "required": ["ok"] }
+    },
+
+    "window_move_resize": {
+      "description": "Layer 2. Move/resize a window; respects min/max hints.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "id": { "type": "string" }, "x": { "type": "number" }, "y": { "type": "number" }, "w": { "type": "number" }, "h": { "type": "number" }, "unit": { "type": "string", "enum": ["px", "percent"], "default": "px" } },
+        "required": ["id", "x", "y"]
+      },
+      "output": { "type": "object", "properties": { "ok": { "type": "boolean" }, "error": { "type": "string" } }, "required": ["ok"] }
+    },
+
+    "widget_transform": {
+      "description": "Layer 2. Move/resize/rotate a Plasma widget; per-axis applied only if the widget declared support.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "move": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
+          "resize": { "type": "object", "properties": { "w": { "type": "number" }, "h": { "type": "number" } } },
+          "rotate_deg": { "type": "number" }
+        },
+        "required": ["id"]
+      },
+      "output": { "type": "object", "properties": { "ok": { "type": "boolean" }, "error": { "type": "string" }, "unsupported": { "type": "array", "items": { "type": "string" } } }, "required": ["ok"] }
+    },
+
+    "focus":      { "description": "Layer 2.", "inputSchema": { "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"] }, "output": { "type": "object", "properties": { "ok": { "type": "boolean" } }, "required": ["ok"] } },
+    "activate":   { "description": "Layer 2.", "inputSchema": { "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"] }, "output": { "type": "object", "properties": { "ok": { "type": "boolean" } }, "required": ["ok"] } },
+    "close":      { "description": "Layer 2.", "inputSchema": { "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"] }, "output": { "type": "object", "properties": { "ok": { "type": "boolean" } }, "required": ["ok"] } },
+
+    "click": {
+      "description": "Layer 2 fallback. Prefer invoke_action when a semantic action exists.",
+      "inputSchema": { "type": "object", "properties": { "element_id": { "type": "string" }, "button": { "type": "string", "enum": ["left", "right", "middle"], "default": "left" }, "count": { "type": "integer", "default": 1 } }, "required": ["element_id"] },
+      "output": { "type": "object", "properties": { "ok": { "type": "boolean" } }, "required": ["ok"] }
+    },
+    "hover":      { "description": "Layer 2 fallback.", "inputSchema": { "type": "object", "properties": { "element_id": { "type": "string" } }, "required": ["element_id"] }, "output": { "type": "object", "properties": { "ok": { "type": "boolean" } }, "required": ["ok"] } },
+    "scroll":     { "description": "Layer 2 fallback.", "inputSchema": { "type": "object", "properties": { "element_id": { "type": "string" }, "dy": { "type": "number" } }, "required": ["element_id"] }, "output": { "type": "object", "properties": { "ok": { "type": "boolean" } }, "required": ["ok"] } },
+
+    "type_text":  { "description": "Layer 2 fallback. Synthesize text input, optionally into a focused element.", "inputSchema": { "type": "object", "properties": { "element_id": { "type": "string" }, "text": { "type": "string" } }, "required": ["text"] }, "output": { "type": "object", "properties": { "ok": { "type": "boolean" } }, "required": ["ok"] } },
+    "key":        { "description": "Layer 2 fallback. Synthesize a key.", "inputSchema": { "type": "object", "properties": { "element_id": { "type": "string" }, "keysym": { "type": "string" } }, "required": ["keysym"] }, "output": { "type": "object", "properties": { "ok": { "type": "boolean" } }, "required": ["ok"] } },
+
+    "assert_state": {
+      "description": "Machine-checked verify gate. Runs a Layer 1 query, matches against expect. Used by subagents (via orchestrator) to prove a change landed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "object", "$comment": "a Layer 1 tool call: {tool, args}" },
+          "expect": { "type": "object", "$comment": "structured match or predicate over query output" }
+        },
+        "required": ["query", "expect"]
+      },
+      "output": {
+        "type": "object",
+        "properties": { "pass": { "type": "boolean" }, "diff": { "type": "string" }, "snapshot_ref": { "type": "string" } },
+        "required": ["pass"]
+      }
+    }
+  }
+}

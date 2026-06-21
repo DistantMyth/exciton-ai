@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": [
+    "Contract: CONTRACT-005",
+    "Status:    DRAFT",
+    "Version:   0.1.0",
+    "Author:    Role B",
+    "Consumed:  Role D (HITL viewer + task harness tail this stream).",
+    "Schema for ONE LINE of the JSONL log. The plasma-ai MCP server appends one record per",
+    "request/response/action. The HITL viewer tails this for observe-only monitoring."
+  ],
+  "contractId": "CONTRACT-005",
+  "version": "0.1.0",
+
+  "logRecord": {
+    "type": "object",
+    "properties": {
+      "ts": { "type": "string", "format": "date-time", "description": "UTC ISO-8601 timestamp." },
+      "seq": { "type": "integer", "description": "Monotonic sequence number per session." },
+      "session": { "type": "string", "description": "Session id (ties main + subagents together)." },
+      "actor": { "type": "string", "enum": ["main-agent", "subagent", "orchestrator"], "description": "Who initiated this record." },
+      "kind": {
+        "type": "string",
+        "enum": ["request", "response", "action", "assert", "delegate", "result", "error"],
+        "description": "request=MCP tool called; response=its reply; action=Layer 2 op; assert=assert_state result; delegate=delegate_task spawned; result=subagent envelope; error=fault."
+      },
+      "tool": { "type": "string", "description": "MCP tool name, when kind is request/response/action." },
+      "args": { "type": "object", "description": "Tool call arguments." },
+      "result": { "description": "Tool response / assert pass / result envelope (shape depends on kind)." },
+      "element_ids": { "type": "array", "items": { "type": "string" }, "description": "Element-ids touched/referenced (for HITL quick filtering)." },
+      "tokens": { "type": "integer", "description": "Tokens attributable to this record, if any." },
+      "parent_seq": { "type": "integer", "description": "If part of a subagent trace, the seq of the spawning delegate." },
+      "note": { "type": "string" }
+    },
+    "required": ["ts", "seq", "session", "actor", "kind"]
+  }
+}

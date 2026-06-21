@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": [
+    "Contract: CONTRACT-006",
+    "Status:    DRAFT",
+    "Version:   0.1.0",
+    "Author:    Role A",
+    "Consumed:  Role B (feeds introspect_capabilities() + the capability/action registry).",
+    "Schema for the central capability/action registry that the Plasma fork exposes, and that",
+    "the MCP server enumerates so the model knows what THIS build can do."
+  ],
+  "contractId": "CONTRACT-006",
+  "version": "0.1.0",
+
+  "capabilityRegistry": {
+    "type": "object",
+    "properties": {
+      "build": { "type": "string", "description": "plasma-desktop fork build id (e.g. git short sha)." },
+      "interfaceVersion": { "type": "string", "description": "org.kde.PlasmaShell.Introspect Version property." },
+      "capabilities": {
+        "type": "array",
+        "description": "Every capability the build knows about, across applets.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "examples": ["Draggable", "Resizable", "Rotatable", "Configurable"] },
+            "appliesTo": { "type": "array", "items": { "type": "string", "enum": ["applet", "window", "containment", "element"] } }
+          },
+          "required": ["name", "appliesTo"]
+        }
+      },
+      "actions": {
+        "type": "array",
+        "description": "Named actions exposed by elements, with per-action arg schemas.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "examples": ["move", "resize", "rotate", "remove", "toggle", "open-settings"] },
+            "appliesTo": { "type": "array", "items": { "type": "string", "enum": ["applet", "window", "containment", "element"] } },
+            "args": { "type": "object", "description": "JSON-Schema for this action's args object." }
+          },
+          "required": ["name", "appliesTo", "args"]
+        }
+      }
+    },
+    "required": ["build", "interfaceVersion", "capabilities", "actions"]
+  }
+}

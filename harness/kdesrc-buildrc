@@ -1,0 +1,54 @@
+# harness/kdesrc-buildrc — 3-fork build chain for plasma-ai (task D-001)
+#
+# Owned by @tarun (Role D). Per ADR-0001, we build the 3 forks in dep order:
+#   libplasma → plasma-workspace → plasma-desktop
+# deps flow down. A libplasma ABI break → rebuild all three (flag in done.md).
+#
+# This is a SCAFFOLD. @tarun fills in real source-dir + install-dir paths (task D-001).
+# Docs: https://develop.kde.org/docs/getting-started/building/
+#
+# Usage (from repo root):
+#   ./harness/test-session.sh build
+# ...which invokes:  kdesrc-build libplasma plasma-workspace plasma-desktop
+#
+# Each module below points at our forks (DistantMyth/*), not KDE upstream.
+
+# --- global options (scaffold — @tarun confirms paths for this machine) ---
+global
+    # Where the 3 forks are checked out (siblings), e.g. ~/Projects/{libplasma,plasma-workspace,Exciton}
+    source-dir  ~/Projects
+    # Where builds + installs land (keep separate from system Plasma!)
+    build-dir   ~/kdesrc-build/build
+    kdedir      ~/kdesrc-build/install
+    # Use our forks, not KDE invent
+    git-protocol https
+    branch-group master
+    # Don't pollute the system; we run from a nested session against these installs
+    install-session-dir ~/kdesrc-build/install
+end global
+
+# --- the chain (order matters: deps flow down) ---
+
+module libplasma
+    repository git://github.com/DistantMyth/libplasma.git
+    # @tarun: confirm the local checkout name. Bump soname in done.md on ABI change.
+end module
+
+module plasma-workspace
+    repository git://github.com/DistantMyth/plasma-workspace.git
+    # Depends on libplasma. Where org.kde.PlasmaShell.Introspect + capability registry live.
+end module
+
+module plasma-desktop
+    repository git://github.com/DistantMyth/Exciton.git
+    # Pure plasma-desktop fork. Per-applet describeSelf() overrides live here.
+    # (The coordination hub is a separate repo, exciton-ai — not built by kdesrc-build.)
+end module
+
+# Module set closes the chain
+module-set plasma-ai
+    # Build order is as listed; kdesrc-build resolves intra-set deps.
+    libplasma
+    plasma-workspace
+    plasma-desktop
+end module-set
