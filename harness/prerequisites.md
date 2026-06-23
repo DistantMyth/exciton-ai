@@ -1,7 +1,14 @@
-# Build prerequisites — machine state (verified 2026-06-21)
+# Build prerequisites — machine state (verified 2026-06-23)
 
 Task D-001. Honest record of what this box has and what it needs to build the 3-fork chain.
 Maintained by @tarun (Role D). Re-verify after any toolchain change and update the date.
+
+> **2026-06-23 correction:** the first version of this file (2026-06-21) claimed cmake could
+> not find Qt6/KF6/Plasma and concluded kdesrc-build was required. That was wrong — it was
+> based on a flawed `cmake --find-package` probe that misreported, and on a misreading of Arch
+> package layout (Arch ships headers in the base package, there is no separate `-dev`). The
+> real situation is documented below. **kdesrc-build is NOT required on this box.** The full
+> chain configures and the base module (libplasma) builds against the upgraded system packages.
 
 ## Toolchain present ✓
 
@@ -9,53 +16,63 @@ Maintained by @tarun (Role D). Re-verify after any toolchain change and update t
 |------|----------------|
 | cmake | `/usr/bin/cmake` |
 | ninja | `/usr/bin/ninja` |
-| gcc / g++ | `/usr/bin/{gcc,g++}` |
+| gcc / g++ | `/usr/bin/{gcc,g++}` (GCC 15.x) |
 | msgfmt | `/usr/bin/msgfmt` (gettext) |
 | git | present |
 
-## kdesrc-build — NOT installed ✗
+## System: Arch Linux — provides the full dependency closure
 
-`kdesrc-build` is not on `PATH` and `~/kdesrc-build` does not exist. This matters because
-kdesrc-build is normally what pulls the **entire KF6/Qt6/ECM dependency closure** that our
-three forks need. Two paths forward:
+This box runs Arch Linux with KDE Plasma 6 installed from the `extra` repo. Crucially:
+- **No `-dev` split on Arch** — headers ship in the base package. `qt6-base`, `kconfig`,
+  `extra-cmake-modules` etc. carry everything needed to `find_package` them.
+- **KF6 frameworks use classic package names** (`kconfig`, `kcoreaddons`, `kcmutils` …),
+  grouped in pacman as `(kf6)`, NOT a `kf6-` prefix.
+- **All dependencies our forks declare are satisfiable from `extra`.** No kdesrc-build needed.
 
-1. **Install kdesrc-build** (preferred — matches ADR-0001 + the canonical config):
-   ```bash
-   git clone https://invent.kde.org/sdk/kdesrc-build ~/kdesrc-build
-   ln -s ~/kdesrc-build/kdesrc-build ~/.local/bin/kdesrc-build
-   kdesrc-build --initial-setup    # sets up dependencies via distro packages
-   ```
-   Then `harness/kdesrc-buildrc` builds our forks (it points at the local checkouts via
-   `git+file://`, so kdesrc-build never re-clones from KDE invent).
+### Current versions (verified 2026-06-23, after `pacman -Syu`)
 
-2. **CMake fallback** (`harness/build-forks.sh`) — works with cmake+ninja only, BUT only if
-   the KF6/Qt6/ECM dependencies are satisfied by the system (see gap below).
+| dependency | installed | required by forks | status |
+|------------|-----------|-------------------|--------|
+| extra-cmake-modules | 6.27.0-1 | ≥ 6.26.0 | ✓ |
+| kconfig / kcoreaddons / … (all 34 KF6 frameworks) | 6.27.0-1 | ≥ 6.26.0 | ✓ |
+| qt6-base / declarative / svg / wayland | 6.11.1-1 | ≥ 6.10.0 | ✓ |
+| plasma-wayland-protocols | 1.21.0-1 | ≥ 1.10 / ≥ 1.21 | ✓ |
+| wayland | 1.25.0-1 | ≥ 1.9 | ✓ |
+| wayland-protocols | 1.49-1 | ≥ 1.46 | ✓ |
+| plasma-activities | 6.7.0-1 | ≥ 6.6.90 | ✓ |
 
-## Dependency gap (the real blocker)
+### What was done to reach this state (history, not a recurring step)
+1. System was one minor behind: KF6/ECM at **6.25.0**, forks want **≥ 6.26.0**.
+   `find_package(ECM 6.26.0)` rejected 6.25.0 at configure time (confirmed empirically).
+2. `plasma-wayland-protocols` was genuinely **not installed** — installed it from `extra`.
+3. `pacman -Syu` brought all KF6 frameworks + ECM to **6.27.0** (plus Qt6 6.11.1 etc.). This
+   was a large upgrade (815 pkgs incl. linux 6.19→7.0.12, gcc/glibc 15→16); needed a reboot.
 
-Our forks' `find_package` needs (verified from each CMakeLists.txt):
+## Verified: the chain builds against the system packages
 
-- **libplasma**: ECM, Qt6 (Quick/Gui/Qml/Svg/QuickControls2/DBus/GuiPrivate), KF6,
-  PlasmaWaylandProtocols 1.10, Qt6WaylandClient.
-- **plasma-workspace**: ECM, Qt6, KF6, **Plasma** (= libplasma ✓ our chain), PlasmaQuick,
-  PlasmaActivities.
-- **plasma-desktop** (Exciton): ECM, Qt6, KF6, Plasma5Support, **Plasma** (= libplasma ✓),
-  PlasmaQuick, PlasmaActivities.
+Proven empirically on 2026-06-23 (not assumed):
+- **libplasma** — `cmake -S . -B build` then `cmake --build .` → **485/485 targets, exit 0**.
+  All 13 KF6 components, ECM, Qt6, PlasmaWaylandProtocols, Wayland, PlasmaActivities resolved.
+- **plasma-workspace** — `cmake` configure against the freshly-built libplasma (via
+  `CMAKE_PREFIX_PATH=…/.install`) → **exit 0**, "Configuring done". Found Plasma/PlasmaQuick/
+  PlasmaActivities from our prefix. Only optional/runtime extras unmet (KIOExtras, KIOFuse,
+  PackageKit — none block the build).
+- **plasma-desktop (Exciton)** — not yet built this session, but its `find_package` set is a
+  subset of plasma-workspace's (Plasma5Support, Plasma, PlasmaQuick, PlasmaActivities) and all
+  are present; expected to configure the same way.
 
-cmake `find_package` probe results on this box (2026-06-21):
+So `build-forks.sh` works today with no kdesrc-build and no source dependency closure.
 
-| package | cmake find_package | pkg-config |
-|---------|--------------------|------------|
-| ECM | **found** | — |
-| Qt6 | **NOT found** | no |
-| KF6 (umbrella) | **NOT found** | partial (KF6CoreAddons 6.25.0 present) |
-| Plasma / PlasmaQuick / Plasma5Support / PlasmaActivities | **NOT found** | partial (PlasmaActivities 6.6.4) |
-| PlasmaWaylandProtocols | **NOT found** | no |
+## kdesrc-build — optional, NOT installed
 
-**Conclusion:** a plain CMake build will currently FAIL at configure time on missing Qt6/KF6.
-Either (a) install kdesrc-build and let it provision the dependency closure, or
-(b) install the distro development packages (`extra-cmake-modules`, `qt6-base -dev`,
-`kf6-* -dev`, `plasma-wayland-protocols`) before running `build-forks.sh`.
+`kdesrc-build` is not on `PATH`. It is **not needed** here because the system packages already
+satisfy the dependency closure. `harness/kdesrc-buildrc` remains available as the canonical
+config for anyone who prefers it or is on a distro without packaged KF6; install with:
+```bash
+git clone https://invent.kde.org/sdk/kdesrc-build ~/kdesrc-build
+ln -s ~/kdesrc-build/kdesrc-build ~/.local/bin/kdesrc-build
+```
+It points at our local fork checkouts via `git+file://`, so it never re-clones from KDE invent.
 
 ## Paths (canonical, machine-confirmed)
 
@@ -70,3 +87,14 @@ Either (a) install kdesrc-build and let it provision the dependency closure, or
 - `Plasma::Applet` ABI (soname) change in libplasma → rebuild **all three**; flag in `done.md`.
 - `org.kde.PlasmaShell.Introspect.Version` change in plasma-workspace → no rebuild needed,
   but record in `done.md` + ADR (it's a wire-protocol version, not a build dep).
+
+## How to build now
+
+```bash
+cd ~/Projects/AI-Workspace/exciton-ai
+./harness/build-forks.sh            # libplasma → plasma-workspace → plasma-desktop (dep order)
+# or one module:  ./harness/build-forks.sh libplasma
+# or via kdesrc-build if installed:  ./harness/test-session.sh build
+```
+The first build installs libplasma to `.install/` so downstream modules resolve it via
+`CMAKE_PREFIX_PATH` — that's the chain linkage, verified working.
