@@ -19,7 +19,7 @@
 ships until these are SIGNED.** ADR-0001 (3-fork layout) is accepted.
 
 ### Phase 0 — Contracts (the gate)
-- [TODO] CONTRACT-001 — element-id-scheme — @tarun(drives) — finalize opaque-vs-structured `win:` decision
+- [REVIEW] CONTRACT-001 — element-id-scheme — @tarun(drives) — DECISION: opaque `win:` handles; element-ids.md finalized, pending team ack
 - [TODO] CONTRACT-002 — plasma-dbus.xml (org.kde.PlasmaShell.Introspect) — @anuj — spans plasma-workspace; B consumes
 - [TODO] CONTRACT-003 — mcp-tools.json (Layer 1 + Layer 2 + assert_state) — @srujan — C consumes
 - [TODO] CONTRACT-004 — delegate-task + result envelope schema — @rohan — B & D consume
