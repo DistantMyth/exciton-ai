@@ -215,6 +215,12 @@ Bootstrap script: `harness/test-session.sh up` / `down` (Role D owns and maintai
 
 ## 9. MILESTONES (the gate order)
 
+> **Full version-mapped task chart (every task → version → owner → dependency): see
+> `ROADMAP.md`.** The milestones below are the canonical definitions; ROADMAP maps the live
+> `BACKLOG.md` tasks onto them and records which version each ships in. D (@tarun) marks a
+> version DONE in `ROADMAP.md` when its gate passes. No next-version component work starts until
+> the prior version is DONE (contracts + a few dependency-free tasks excepted — see ROADMAP §strict).
+
 - **v0.1 — Contracts + read-only introspection.** `docs/contracts/` signed off; MCP server
   serves Layer 1 over AT-SPI2 + existing KWin D-Bus; `instructions` +
   `plasma://capabilities` shipped. No fork changes yet. Gate: model answers 3 read-only
