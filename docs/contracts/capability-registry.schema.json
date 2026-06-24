@@ -1,48 +1,84 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$comment": [
-    "Contract: CONTRACT-006",
-    "Status:    DRAFT",
-    "Version:   0.1.0",
-    "Author:    Role A",
-    "Consumed:  Role B (feeds introspect_capabilities() + the capability/action registry).",
-    "Schema for the central capability/action registry that the Plasma fork exposes, and that",
-    "the MCP server enumerates so the model knows what THIS build can do."
-  ],
+  "$id": "https://distantmyth.github.io/exciton-ai/contracts/capability-registry.schema.json",
+  "title": "Plasma capability/action registry (CONTRACT-006)",
+  "$comment": "Contract: CONTRACT-006 | Status: SIGNED (proposed for sign-off by A, 2026-06-24; awaits team ack) | Version: 0.1.0 | Author: @anuj (Role A) | Consumed: @srujan (Role B) — emitted by org.kde.PlasmaShell.Introspect.globalCapabilities() (CONTRACT-002) and projected into MCP introspect_capabilities() (CONTRACT-003), so the model can discover what THIS build supports. This file is itself a valid JSON-Schema: an instance emitted by globalCapabilities() MUST validate against the root schema below. ID scheme: CONTRACT-001 — registry entries use `cap:<name>` and `act:<name>` stable ids; these are registry-level ids, distinct from per-instance `act:<element-id>/<name>` refs. Cross-refs: CONTRACT-002 (appletCapabilities/globalCapabilities); CONTRACT-003 (get_actions / widget_transform / introspect_capabilities).",
   "contractId": "CONTRACT-006",
   "version": "0.1.0",
 
-  "capabilityRegistry": {
-    "type": "object",
-    "properties": {
-      "build": { "type": "string", "description": "plasma-desktop fork build id (e.g. git short sha)." },
-      "interfaceVersion": { "type": "string", "description": "org.kde.PlasmaShell.Introspect Version property." },
-      "capabilities": {
-        "type": "array",
-        "description": "Every capability the build knows about, across applets.",
-        "items": {
-          "type": "object",
-          "properties": {
-            "name": { "type": "string", "examples": ["Draggable", "Resizable", "Rotatable", "Configurable"] },
-            "appliesTo": { "type": "array", "items": { "type": "string", "enum": ["applet", "window", "containment", "element"] } }
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "build": {
+      "type": "string",
+      "description": "plasma-desktop fork build id (e.g. git short sha of the plasma-workspace fork). Identifies which fork iteration produced this registry."
+    },
+    "interfaceVersion": {
+      "type": "string",
+      "description": "Equals the org.kde.PlasmaShell.Introspect Version property (CONTRACT-002). Consumers MUST treat a greater-than-known version defensively."
+    },
+    "capabilities": {
+      "type": "array",
+      "description": "Every capability the build knows about, across all element kinds. A capability is a coarse 'what can be done to an element class'; per-applet support is the subset returned by appletCapabilities(). The canonical v0.1 set is Draggable, Resizable, Rotatable, Configurable.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^cap:[A-Za-z0-9_.-]+$",
+            "description": "Stable registry id, CONTRACT-001 vocabulary. e.g. 'cap:draggable'.",
+            "examples": ["cap:draggable", "cap:resizable", "cap:rotatable", "cap:configurable"]
           },
-          "required": ["name", "appliesTo"]
-        }
-      },
-      "actions": {
-        "type": "array",
-        "description": "Named actions exposed by elements, with per-action arg schemas.",
-        "items": {
-          "type": "object",
-          "properties": {
-            "name": { "type": "string", "examples": ["move", "resize", "rotate", "remove", "toggle", "open-settings"] },
-            "appliesTo": { "type": "array", "items": { "type": "string", "enum": ["applet", "window", "containment", "element"] } },
-            "args": { "type": "object", "description": "JSON-Schema for this action's args object." }
+          "name": {
+            "type": "string",
+            "description": "Human/model-readable capability name. appletInfo('capabilities') and appletCapabilities() emit these names verbatim.",
+            "examples": ["Draggable", "Resizable", "Rotatable", "Configurable"]
           },
-          "required": ["name", "appliesTo", "args"]
-        }
+          "appliesTo": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["applet", "window", "containment", "element"] },
+            "description": "Which element kinds this capability can apply to. Mirrors CONTRACT-001 element types."
+          },
+          "description": { "type": "string", "description": "One-line semantics of the capability." }
+        },
+        "required": ["id", "name", "appliesTo"]
       }
     },
-    "required": ["build", "interfaceVersion", "capabilities", "actions"]
-  }
+    "actions": {
+      "type": "array",
+      "description": "Named actions exposed by elements, each with a per-action JSON-Schema for its args object. Backs MCP get_actions() (where the same schema is named 'schema') and the Layer 2 invoke_action/widget_transform tools.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^act:[A-Za-z0-9_.-]+$",
+            "description": "Stable registry id, CONTRACT-001 vocabulary. e.g. 'act:rotate'. Note: per-instance action refs are 'act:<wgt:id>/<name>'; this registry id is the template.",
+            "examples": ["act:move", "act:resize", "act:rotate", "act:remove", "act:toggle", "act:open-settings"]
+          },
+          "name": {
+            "type": "string",
+            "description": "Action name. Must match an `op` understood by CONTRACT-002 appletTransform where the action is a transform; otherwise a free name for invoke_action.",
+            "examples": ["move", "resize", "rotate", "remove", "toggle", "open-settings"]
+          },
+          "appliesTo": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["applet", "window", "containment", "element"] }
+          },
+          "requiresCapability": {
+            "type": "string",
+            "description": "Capability (name) that must be supported for this action to apply, or null/omitted if none. e.g. rotate requires Rotatable. Maps to appletTransform's per-axis gating."
+          },
+          "args": {
+            "type": "object",
+            "description": "A JSON-Schema (draft 2020-12) describing this action's args object. When projected into MCP get_actions() output (CONTRACT-003) the SAME object is emitted under the key 'schema'. When passed to appletTransform it is the JSON value of the `args` parameter."
+          }
+        },
+        "required": ["id", "name", "appliesTo", "args"]
+      }
+    }
+  },
+  "required": ["build", "interfaceVersion", "capabilities", "actions"]
 }
