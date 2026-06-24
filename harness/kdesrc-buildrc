@@ -2,52 +2,68 @@
 #
 # Owned by @tarun (Role D). Per ADR-0001, we build the 3 forks in dep order:
 #   libplasma → plasma-workspace → plasma-desktop
-# deps flow down. A libplasma ABI break → rebuild all three (flag in done.md).
+#   (deps flow down). A libplasma ABI break → rebuild all three (flag in done.md).
 #
-# This is a SCAFFOLD. @tarun fills in real source-dir + install-dir paths (task D-001).
+# Machine reality (verified 2026-06-21 on this box):
+#   - forks are siblings checked out at ~/Projects/AI-Workspace/{libplasma,plasma-workspace,Exciton}
+#   - NOTE: the plasma-desktop fork is checked out as `Exciton/`, not `plasma-desktop/`.
+#     kdesrc-build names source/build dirs after the MODULE name, so we point each module's
+#     `repository` at the LOCAL checkout via git+file:// — kdesrc-build then uses the existing
+#     working tree and NEVER re-clones from KDE invent. This is the whole point: we build OUR
+#     forks, not upstream.
+#   - kdesrc-build is NOT installed on this machine yet (see harness/build-forks.sh for the
+#     plain-CMake fallback that works today). Install kdesrc-build to use this config:
+#       git clone https://invent.kde.org/sdk/kdesrc-build ~/kdesrc-build
+#       ln -s ~/kdesrc-build/kdesrc-build ~/.local/bin/kdesrc-build
+#   - cmake, ninja, gcc/g++, msgfmt ARE present (verified).
+#
+# Usage once kdesrc-build is installed:
+#   kdesrc-build --metadata-only --no-include-dependencies libplasma plasma-workspace plasma-desktop
+#   (test-session.sh build wraps this; build-forks.sh is the no-kdesrc-build fallback.)
+#
 # Docs: https://develop.kde.org/docs/getting-started/building/
-#
-# Usage (from repo root):
-#   ./harness/test-session.sh build
-# ...which invokes:  kdesrc-build libplasma plasma-workspace plasma-desktop
-#
-# Each module below points at our forks (DistantMyth/*), not KDE upstream.
 
-# --- global options (scaffold — @tarun confirms paths for this machine) ---
 global
-    # Where the 3 forks are checked out (siblings), e.g. ~/Projects/{libplasma,plasma-workspace,Exciton}
-    source-dir  ~/Projects
-    # Where builds + installs land (keep separate from system Plasma!)
-    build-dir   ~/kdesrc-build/build
-    kdedir      ~/kdesrc-build/install
-    # Use our forks, not KDE invent
+    # Sibling checkouts live here (NOT ~/Projects — they're under an AI-Workspace subdir).
+    source-dir  ~/Projects/AI-Workspace
+    # Build trees + install prefix, kept strictly separate from the system Plasma at /usr.
+    build-dir   ~/Projects/AI-Workspace/.build
+    kdedir      ~/Projects/AI-Workspace/.install
+    # Build our forks; do not follow KDE invent dependency metadata upstream.
     git-protocol https
     branch-group master
-    # Don't pollute the system; we run from a nested session against these installs
-    install-session-dir ~/kdesrc-build/install
+    no-include-dependencies
+    # Never touch the system; the nested test session runs against .install only.
+    install-session-dir ~/Projects/AI-Workspace/.install
 end global
 
 # --- the chain (order matters: deps flow down) ---
+# Each module's repository is the LOCAL fork via git+file:// so kdesrc-build builds the
+# existing working tree instead of cloning. module-set at the bottom fixes the build order.
 
 module libplasma
-    repository git://github.com/DistantMyth/libplasma.git
-    # @tarun: confirm the local checkout name. Bump soname in done.md on ABI change.
+    repository git+file:///home/tarun/Projects/AI-Workspace/libplasma
+    # Plasma::Applet base virtuals live here (ADR-0001, masterplan §6 row 2/3).
+    # On ABI change: bump soname + flag in done.md + follow-up ADR.
 end module
 
 module plasma-workspace
-    repository git://github.com/DistantMyth/plasma-workspace.git
-    # Depends on libplasma. Where org.kde.PlasmaShell.Introspect + capability registry live.
+    repository git+file:///home/tarun/Projects/AI-Workspace/plasma-workspace
+    # Depends on libplasma. Owns: org.kde.PlasmaShell.Introspect, capability registry,
+    # KWin structured metadata, logging hook (masterplan §6 rows 1/5/6/7).
+    # On Introspect iface or registry change: bump org.kde.PlasmaShell.Introspect.Version.
 end module
 
 module plasma-desktop
-    repository git://github.com/DistantMyth/Exciton.git
-    # Pure plasma-desktop fork. Per-applet describeSelf() overrides live here.
-    # (The coordination hub is a separate repo, exciton-ai — not built by kdesrc-build.)
+    # The fork is checked out as Exciton/, but the module name is plasma-desktop (its
+    # CMake project()). git+file:// points at the real path regardless of dir name.
+    repository git+file:///home/tarun/Projects/AI-Workspace/Exciton
+    # Per-applet describeSelf() overrides (clock, launcher, systemtray, weather) live here
+    # (masterplan §6 row 4). The coordination hub (exciton-ai) is NOT built by kdesrc-build.
 end module
 
-# Module set closes the chain
+# Module set closes the chain in dep order. kdesrc-build builds them as listed.
 module-set plasma-ai
-    # Build order is as listed; kdesrc-build resolves intra-set deps.
     libplasma
     plasma-workspace
     plasma-desktop

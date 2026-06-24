@@ -94,14 +94,26 @@ cmd_status() {
 cmd_env() { [ -f "$ENV_FILE" ] && cat "$ENV_FILE" || { echo "no session"; exit 1; }; }
 
 cmd_build() {
-  # Build the 3-fork chain in dep order (ADR-0001). Config: harness/kdesrc-buildrc (task D-001).
+  # Build the 3-fork chain in dep order (ADR-0001). Prefer kdesrc-build + harness/kdesrc-buildrc
+  # (canonical); fall back to harness/build-forks.sh (plain CMake) when kdesrc-build isn't
+  # installed. Both use the same install prefix (~/Projects/AI-Workspace/.install).
   local CFG="$HERE/kdesrc-buildrc"
+  local FALLBACK="$HERE/build-forks.sh"
   [ -f "$CFG" ] || { echo "[$0] missing $CFG (task D-001 not done)"; exit 1; }
-  echo "[$0] building 3-fork chain: libplasma → plasma-workspace → plasma-desktop"
-  # kdesrc-build respects order in the config; deps flow down.
-  kdesrc-build --metadata-only --no-include-dependencies \
-    libplasma plasma-workspace plasma-desktop \
-    || { echo "[$0] build failed; see $LOG_DIR/build.log"; exit 1; }
+
+  if command -v kdesrc-build >/dev/null 2>&1; then
+    echo "[$0] building 3-fork chain via kdesrc-build: libplasma → plasma-workspace → plasma-desktop"
+    kdesrc-build --metadata-only --no-include-dependencies \
+      libplasma plasma-workspace plasma-desktop \
+      || { echo "[$0] build failed; see kdesrc-build output"; exit 1; }
+  elif [ -x "$FALLBACK" ]; then
+    echo "[$0] kdesrc-build not installed; using CMake fallback ($FALLBACK)"
+    echo "[$0] NOTE: requires KF6/Qt6/ECM deps — see harness/prerequisites.md"
+    "$FALLBACK" "$@" || { echo "[$0] build failed; see $LOG_DIR/build.log"; exit 1; }
+  else
+    echo "[$0] no builder available: install kdesrc-build or create $FALLBACK (task D-001)"
+    exit 1
+  fi
 }
 
 case "${1:-}" in

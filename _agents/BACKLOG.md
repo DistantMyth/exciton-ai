@@ -27,7 +27,7 @@ ships until these are SIGNED.** ADR-0001 (3-fork layout) is accepted.
 - [TODO] CONTRACT-006 — capability-registry.schema.json — @anuj — B consumes
 
 ### Phase 1 — Build chain + test bed (unblocks everyone)
-- [TODO] D-001 — kdesrc-build 3-module chain config (libplasma→plasma-workspace→plasma-desktop) — @tarun — unblocks Anuj
+- [CLAIMED] D-001 — kdesrc-build 3-module chain config (libplasma→plasma-workspace→plasma-desktop) — @tarun — unblocks Anuj
 - [TODO] D-002 — test-session.sh: replace placeholder invocations with real binary paths — @tarun — unblocks integration
 - [TODO] D-003 — CI: build/test per component + BACKLOG lint — @tarun
 
