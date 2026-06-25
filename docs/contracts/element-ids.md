@@ -1,8 +1,8 @@
 # Element-ID Scheme
 
 - **Contract:** CONTRACT-001
-- **Status:** SIGNED (D drives; pending team ack on the win: decision below)
-- **Version:** 0.1.0
+- **Status:** SIGNED (D drives; pending team ack on the win: decision + cap: addition below)
+- **Version:** 0.2.0
 - **Authors:** all (D drives)
 - **Consumed by:** everyone
 
@@ -15,7 +15,7 @@ MUST be valid as an argument to an action on the same element within a session.
 
 ```
 <element-id> ::= <type> ":" <path>
-<type>       ::= "desktop" | "win" | "el" | "wgt" | "act"
+<type>       ::= "desktop" | "win" | "el" | "wgt" | "act" | "cap"
 <path>       ::= <segment> ( "/" <segment> )*
 <segment>    ::= [A-Za-z0-9_.-]+
 ```
@@ -25,10 +25,11 @@ MUST be valid as an argument to an action on the same element within a session.
 | Type | Meaning | Examples |
 |------|---------|----------|
 | `desktop:` | a workspace / virtual desktop | `desktop:1`, `desktop:2` |
-| `win:` | a top-level window/surface | `win:42`, `win:org.kde.dolphin/0` |
+| `win:` | a top-level window/surface | `win:42` (opaque numeric handle — see DECISION below) |
 | `el:` | a UI element in an a11y/app tree (AT-SPI node or fork-described node) | `el:plasmashell/panel1/launcher`, `el:win:42/menubar/file` |
 | `wgt:` | a Plasma applet/widget instance | `wgt:desktop/clock`, `wgt:panel1/digitalclock/1` |
-| `act:` | a named action exposed by an element (reference, used in invoke_action) | `act:wgt:desktop/clock/rotate` |
+| `act:` | a named action. **Two forms:** (a) registry template `act:<action-name>` (e.g. `act:rotate`) — the action *class*; (b) per-instance ref `act:<element-id>/<action-name>` (e.g. `act:wgt:desktop/clock/rotate`) — the action *bound to a specific element*, used in `invoke_action`. | `act:rotate`, `act:wgt:desktop/clock/rotate` |
+| `cap:` | a capability *class* (what can be done to an element *kind*), from the central registry. Names a capability, NOT an instance. | `cap:draggable`, `cap:resizable`, `cap:rotatable`, `cap:configurable` |
 
 ## Rules
 1. **Stable within a session.** The ID for a given element does not change while it exists.
@@ -76,3 +77,19 @@ from KWin window ids; never reused after close within a session (rule 1).
 
 **This is the only sign-off-blocking open question in CONTRACT-001.** Remaining content
 above is stable at v0.1.0.
+
+## AMENDMENT — v0.1.0 → v0.2.0 (added `cap:` type)
+**Resolved 2026-06-24 by D (@tarun).** Added the `cap:` type (capability *class* IDs, e.g.
+`cap:draggable`) and clarified that `act:` has two forms (registry template `act:rotate` vs
+per-instance ref `act:wgt:desktop/clock/rotate`). **Additive, backward-compatible** — no existing
+ID changes; existing consumers ignore `cap:` ids they don't use.
+
+**Why:** CONTRACT-006 (the capability/action registry, authored by A) needs stable IDs to name
+capability *classes* (`Draggable`, `Rotatable`, …) distinct from per-element instance refs. Without
+`cap:`, the registry had no way to name a capability class without colliding with `act:` instance
+refs. A also used `act:<name>` as a registry-template form, which is sound but needed the grammar
+to bless the two-form `act:` explicitly. This amendment reconciles CONTRACT-001 with CONTRACT-006.
+
+**For implementers:** the registry (CONTRACT-006) emits `cap:` and `act:` (template form) ids;
+per-instance action refs remain `act:<element-id>/<name>`. `invoke_action` (Layer 2) always takes
+an element-id + action name, never a bare `cap:` or `act:` template. Full ADR: `_agents/decisions/0003-id-capability-type.md`.

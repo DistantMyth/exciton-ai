@@ -1,40 +1,67 @@
 <!--
   Contract: CONTRACT-002
-  Status:    DRAFT
+  Status:    SIGNED (proposed for sign-off by A, 2026-06-24; awaits team ack)
   Version:   0.1.0
   Author:    @anuj (Role A)
-  Consumed:  @srujan (Role B) — generates client bindings
-  Notes:     This is the introspection XML for org.kde.PlasmaShell.Introspect, the new
-             D-Bus interface Anuj adds to plasmashell. Per ADR-0001, the interface lives in
-             the plasma-workspace fork; the Plasma::Applet base virtuals it calls live in
-             the libplasma fork. Srujan reads this to generate client bindings. Bump
-             Version + open an ADR on any signature change. The methods below are the
-             proposed v0.1 surface — to be signed off before Anuj implements in C++ and
-             Srujan binds.
+  Consumed:  @srujan (Role B) — generates client bindings; the plasma-ai MCP server
+             calls these methods to back the Layer 1 `list_widgets` / `get_widget` /
+             `get_actions` tools and the Layer 2 `widget_transform` tool.
+
+  This is the introspection XML for org.kde.PlasmaShell.Introspect — the new D-Bus
+  interface Anuj adds to plasmashell (per ADR-0001 it lives in the plasma-workspace
+  fork). The Plasma::Applet base virtuals it calls live in the libplasma fork.
+
+  CONVENTIONS (read before binding):
+  * Element-IDs follow CONTRACT-001 (element-ids.md): types `desktop:`/`win:`/`el:`/`wgt:`/`act:`.
+    This interface deals in `wgt:` (applet/widget instances) and bare containment handles.
+  * Containment handles are the strings used verbatim as the `containment` argument to MCP
+    `list_widgets` (CONTRACT-003): bare names like "desktop"/"panel"/"panel1" (NOT `wgt:` ids —
+    a containment is the *parent context* of `wgt:` ids, per CONTRACT-001).
+  * Every method that returns JSON returns it as a single D-Bus string (`s`); Role B parses it.
+    JSON shapes are normative and cross-reference CONTRACT-003 (mcp-tools.json) and
+    CONTRACT-006 (capability-registry.schema.json).
+  * ERROR MODEL: errors are returned as JSON (never raised as D-Bus exceptions), so B can parse
+    them predictably. On failure a method returns a JSON object with `"ok": false` and an
+    `"error"` string. For unsupported transforms it ALSO returns `"applied": []` and
+    `"unsupported": [...]` so the model can self-correct in one turn (masterplan §3
+    rejected-action contract).
+  * Bump `Version` (below) + open an ADR on any signature change. Role B's client MUST adapt
+    per-build via this property.
+  * depth enums mirror CONTRACT-003 exactly: {"bar","sidebar","menu","full"}.
 -->
 <!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
  "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
 <node>
 
-  <!--
-    Containments: panels, desktop, folder view. Returns an array of containment IDs
-    (see docs/contracts/element-ids.md, type "wgt:" parent context).
-  -->
   <interface name="org.kde.PlasmaShell.Introspect">
 
-    <!-- Build/version of the introspection interface, for adaptive clients (Role B). -->
+    <!--
+      Build/version of THIS introspection interface, for adaptive clients (Role B).
+      Format: "<contract-semver>+<fork-iteration>" e.g. "0.1.0+1". Bump on any method/signal
+      or JSON-shape change (CONTRACT-002 version, NOT the capability registry's own version,
+      which is carried inside globalCapabilities()). Mirrors the CONTRACT-006 `interfaceVersion`.
+      Consumers MUST handle greater-than-known versions defensively (introspect_capabilities()
+      fallback per docs/contracts/README.md).
+    -->
     <property name="Version" type="s" access="read"/>
 
     <!--
-      listContainments() -> a(s)  (array of containment element-IDs, e.g. ["desktop","panel1"])
+      listContainments() -> a(s)
+      Bare containment handles usable verbatim as the `containment` arg to MCP `list_widgets`
+      (CONTRACT-003). Examples: ["desktop","panel","panel1"]. These are NOT `wgt:` ids.
+      Ordered: desktop containments first, then panels in screen/edge order.
+      JSON shape: none (plain array of strings).
     -->
     <method name="listContainments">
       <arg name="containments" type="as" direction="out"/>
     </method>
 
     <!--
-      listApplets(containment:s) -> a(s)  (array of applet element-IDs, e.g.
-      ["wgt:desktop/clock","wgt:desktop/launcher"])
+      listApplets(containment:s) -> a(s)
+      containment: a handle from listContainments(). Returns the `wgt:` element-IDs of every
+      applet in that containment, e.g. ["wgt:desktop/clock","wgt:desktop/launcher"].
+      IDs are stable for the lifetime of the applet this session (CONTRACT-001 rule 1).
+      On unknown containment -> empty array (a containment with no applets also returns []).
     -->
     <method name="listApplets">
       <arg name="containment" type="s" direction="in"/>
@@ -43,9 +70,18 @@
 
     <!--
       appletInfo(id:s, fields:as) -> s
-      Returns a JSON string describing the applet, projected to the requested fields.
-      Recognized fields: "plugin","name","geometry","state","zorder","capabilities","actions".
-      Unknown fields ignored. Empty fields[] = minimal default set.
+      id: a `wgt:` element-ID. Returns a JSON object describing the applet, projected to the
+      requested `fields` (token efficiency — masterplan §2).
+      Recognized fields:
+        "plugin"        -> string  (e.g. "org.kde.plasma.analogclock")
+        "name"          -> string  (user-facing title)
+        "geometry"      -> object  {x,y,w,h} (screen coords, px)
+        "state"         -> object  (e.g. {"visible":true,"immutability":"user"})
+        "zorder"        -> integer
+        "capabilities"  -> array   of capability names (subset of CONTRACT-006 capabilities[])
+        "actions"       -> array   of action names this applet exposes (see appletActions)
+      Unknown fields are ignored. Empty fields[] = the minimal default set: ["plugin","name"].
+      On unknown id -> {"ok":false,"error":"no such applet: <id>"}.
     -->
     <method name="appletInfo">
       <arg name="id" type="s" direction="in"/>
@@ -54,8 +90,29 @@
     </method>
 
     <!--
-      appletCapabilities(id:s) -> s  (JSON: {"capabilities":["Draggable","Rotatable",...],
-                                              "actions":[{"name":..., "schema":...}]})
+      appletActions(id:s) -> s
+      Backs MCP `get_actions` (CONTRACT-003) for `wgt:` targets. Returns JSON:
+        { "target":"<wgt:id>",
+          "actions":[ {"name":"rotate","schema":{<JSON-Schema for the action's args>}}, ... ] }
+      The `schema` field of each action IS a JSON-Schema (draft 2020-12) describing that action's
+      args object — identical in meaning to CONTRACT-006 actions[].args (here renamed `schema` to
+      match the CONTRACT-003 `get_actions` output shape). On unknown id -> {"ok":false,"error":...}.
+    -->
+    <method name="appletActions">
+      <arg name="id" type="s" direction="in"/>
+      <arg name="actions" type="s" direction="out"/>
+    </method>
+
+    <!--
+      appletCapabilities(id:s) -> s
+      Returns the applet's supportedCapabilities() (libplasma) + its supportedActions() in one
+      call. JSON shape mirrors the per-applet slice of CONTRACT-006:
+        { "target":"<wgt:id>",
+          "capabilities":["Draggable","Rotatable",...],
+          "actions":[ {"name":...,"args":{<JSON-Schema>}} ] }
+      Note the action arg-schema field is named `args` here (registry vocabulary); appletActions
+      names the SAME schema `schema` (CONTRACT-003 vocabulary). Role B normalizes the two.
+      On unknown id -> {"ok":false,"error":...}.
     -->
     <method name="appletCapabilities">
       <arg name="id" type="s" direction="in"/>
@@ -64,8 +121,13 @@
 
     <!--
       appletDescribe(id:s, depth:s) -> s
-      Returns the applet's semantic markdown self-description (Applet::describeSelf()).
-      depth ∈ {"bar","sidebar","menu","full"} — mirrors the Layer 1 depth contract.
+      Returns the applet's semantic markdown self-description (Plasma::Applet::describeSelf()
+      from libplasma; per-applet overrides live in the Exciton/plasma-desktop fork).
+      depth ∈ {"bar","sidebar","menu","full"} — the SAME enum as CONTRACT-003, with the same
+      "fetch only what you need" semantics. Output is markdown text (no JSON envelope):
+      the default base impl returns name + role only; widget overrides add depth-scoped detail.
+      On unknown id -> empty string + a JSON {"ok":false,...} is NOT used here (markdown out);
+      callers detect a missing applet via listApplets membership.
     -->
     <method name="appletDescribe">
       <arg name="id" type="s" direction="in"/>
@@ -75,9 +137,25 @@
 
     <!--
       appletTransform(id:s, op:s, args:s) -> s
-      op ∈ {"move","resize","rotate","remove"}. args is a JSON object (e.g. {"x":..,"deg":40}).
-      Returns a JSON result: {"ok":bool,"error":?,"supported":?}.
-      Implements the Layer 2 widget_transform contract; rejects unsupported transforms.
+      Backs MCP `widget_transform` (CONTRACT-003). Per-axis transforms apply ONLY if the applet
+      declared the matching capability (Draggable/Resizable/Rotatable) — see CONTRACT-006.
+      op ∈ {"move","resize","rotate","remove"}.
+      args is a JSON object string, op-dependent:
+        move   -> {"x":number,"y":number}            (requires capability "Draggable")
+        resize -> {"w":number,"h":number}            (requires capability "Resizable")
+        rotate -> {"deg":number}                     (requires capability "Rotatable")
+        remove -> {}                                 (always allowed on user-immutable=false)
+      Returns JSON:
+        { "ok":bool, "error":string|null,
+          "applied":[...string],   // op-axes that actually applied (subset of requested)
+          "unsupported":[...]      // requested op-axes rejected for lacking capability
+        }
+      This dual `applied`/`unsupported` form lets Role B map cleanly to EITHER CONTRACT-003
+      `widget_transform.unsupported` OR a `supported` view, and lets the model self-correct in
+      one turn (masterplan §3 rejected-action contract). Partial application is allowed: a
+      single call may move AND resize with only Resizable supported -> applies resize, lists
+      move under unsupported, ok=true.
+      On unknown id -> {"ok":false,"error":"no such applet: <id>","applied":[],"unsupported":[]}.
     -->
     <method name="appletTransform">
       <arg name="id" type="s" direction="in"/>
@@ -87,12 +165,27 @@
     </method>
 
     <!--
-      globalCapabilities() -> s  (JSON array of every capability/action the central
-      registry knows — backs introspect_capabilities() on the MCP server.)
+      globalCapabilities() -> s
+      Returns the WHOLE central capability/action registry as a JSON object VALID against
+      CONTRACT-006 (capability-registry.schema.json). Backs MCP `introspect_capabilities()`
+      (CONTRACT-003) — model discovery of what THIS build can do. The returned object carries
+      its own `interfaceVersion` (== the Version property) and registry `version`.
     -->
     <method name="globalCapabilities">
       <arg name="caps" type="s" direction="out"/>
     </method>
+
+    <!--
+      RESERVED for v0.2+ (NOT in v0.1 — do not bind yet): a signal notifying clients that the
+      containment/applet set changed (applet added/removed/moved at runtime), so B can refresh
+      its cache. Names/args to be finalized with an ADR when introduced. Kept here as a marker
+      only; uncommenting/adding it requires bumping `Version`.
+    -->
+    <!--
+    <signal name="LayoutChanged">
+      <arg name="containment" type="s"/>
+    </signal>
+    -->
 
   </interface>
 </node>

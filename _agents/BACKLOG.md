@@ -20,11 +20,11 @@ ships until these are SIGNED.** ADR-0001 (3-fork layout) is accepted.
 
 ### Phase 0 — Contracts (the gate)
 - [REVIEW] CONTRACT-001 — element-id-scheme — @tarun(drives) — DECISION: opaque `win:` handles; element-ids.md finalized, pending team ack
-- [TODO] CONTRACT-002 — plasma-dbus.xml (org.kde.PlasmaShell.Introspect) — @anuj — spans plasma-workspace; B consumes
+- [CLAIMED] @anuj CONTRACT-002 — plasma-dbus.xml (org.kde.PlasmaShell.Introspect) — @anuj — spans plasma-workspace; B consumes — finalized on feat/A-CONTRACT-002-006
 - [TODO] CONTRACT-003 — mcp-tools.json (Layer 1 + Layer 2 + assert_state) — @srujan — C consumes
 - [TODO] CONTRACT-004 — delegate-task + result envelope schema — @rohan — B & D consume
 - [TODO] CONTRACT-005 — log.jsonl.schema — @srujan — D consumes
-- [TODO] CONTRACT-006 — capability-registry.schema.json — @anuj — B consumes
+- [CLAIMED] @anuj CONTRACT-006 — capability-registry.schema.json — @anuj — B consumes — finalized on feat/A-CONTRACT-002-006
 
 ### Phase 1 — Build chain + test bed (unblocks everyone)
 - [CLAIMED] D-001 — kdesrc-build 3-module chain config (libplasma→plasma-workspace→plasma-desktop) — @tarun — unblocks Anuj
