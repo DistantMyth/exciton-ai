@@ -1,15 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$comment": [
-    "Contract: CONTRACT-003",
-    "Status:    DRAFT",
-    "Version:   0.1.0",
-    "Author:    Role B",
-    "Consumed:  Role C (orchestrator is the MCP client).",
-    "This file lists the JSON-Schemas for every MCP tool the plasma-ai server exposes.",
-    "Layer 1 = queries (nouns), Layer 2 = actions (verbs), plus assert_state.",
-    "Each tool object below mirrors what an MCP client sees in tools/list."
-  ],
+  "$comment": "Contract: CONTRACT-003 | Status: DRAFT | Version: 0.1.0 | Author: Role B (@srujan) | Consumed: Role C (orchestrator is the MCP client). This file lists the JSON-Schemas for every MCP tool the plasma-ai server exposes. Layer 1 = queries (nouns), Layer 2 = actions (verbs), plus assert_state. Each tool object below mirrors what an MCP client sees in tools/list.",
   "contractId": "CONTRACT-003",
   "version": "0.1.0",
   "elementIdContract": "CONTRACT-001",
