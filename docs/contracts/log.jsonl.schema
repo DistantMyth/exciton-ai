@@ -1,14 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$comment": [
-    "Contract: CONTRACT-005",
-    "Status:    DRAFT",
-    "Version:   0.1.0",
-    "Author:    Role B",
-    "Consumed:  Role D (HITL viewer + task harness tail this stream).",
-    "Schema for ONE LINE of the JSONL log. The plasma-ai MCP server appends one record per",
-    "request/response/action. The HITL viewer tails this for observe-only monitoring."
-  ],
+  "$comment": "Contract: CONTRACT-005 | Status: DRAFT | Version: 0.1.0 | Author: Role B (@srujan) | Consumed: Role D (HITL viewer + task harness tail this stream). Schema for ONE LINE of the JSONL log. The plasma-ai MCP server appends one record per request/response/action. The HITL viewer tails this for observe-only monitoring.",
   "contractId": "CONTRACT-005",
   "version": "0.1.0",
 
