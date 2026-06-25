@@ -22,7 +22,7 @@ ships until these are SIGNED.** ADR-0001 (3-fork layout) is accepted.
 - [SIGNED] CONTRACT-001 — element-id-scheme v0.2.0 — @tarun(drives) — opaque `win:` handles; `cap:` type + two-form `act:` added (ADR-0003); merged via PR #1
 - [SIGNED] CONTRACT-002 — plasma-dbus.xml (org.kde.PlasmaShell.Introspect) — @anuj — spans plasma-workspace; B consumes; merged via PR #5
 - [TODO] CONTRACT-003 — mcp-tools.json (Layer 1 + Layer 2 + assert_state) — @srujan — C consumes
-- [TODO] CONTRACT-004 — delegate-task + result envelope schema — @rohan — B & D consume
+- [CLAIMED] CONTRACT-004 — delegate-task + result envelope schema — @rohan — B & D consume; ADR-0005 backing
 - [TODO] CONTRACT-005 — log.jsonl.schema — @srujan — D consumes
 - [SIGNED] CONTRACT-006 — capability-registry.schema.json — @anuj — B consumes; merged via PR #5
 
