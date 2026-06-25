@@ -1,37 +1,128 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$comment": [
-    "Contract: CONTRACT-004",
-    "Status:    DRAFT",
-    "Version:   0.1.0",
-    "Author:    Role C",
-    "Consumed:  Role B (assert_state lives on the MCP server), Role D (harness parses traces).",
-    "Two schemas: (1) delegate_task input, (2) the subagent result envelope that is the",
-    "ONLY thing injected into the main context after a subagent's context is dropped."
-  ],
+  "$comment": "Contract: CONTRACT-004 | Status: PROPOSED (post-ADR-0005; awaiting sign-off) | Version: 0.2.0 | Author: Role C (@rohan) | Consumed: Role B (assert_state lives on the MCP server), Role D (harness parses traces). Two schemas: (1) delegate_task input, (2) the subagent result envelope that is the ONLY thing injected into the main context after a subagent's context is dropped. Normative source of truth for the expect match-language and layer1_query (ADR-0005); CONTRACT-003 assert_state references these $defs via x-source-of-truth so there is ONE definition, each file staying self-contained for tools/list.",
   "contractId": "CONTRACT-004",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "elementIdContract": "CONTRACT-001",
+  "adrRefs": ["0005"],
+
+  "$defs": {
+
+    "layer1_query": {
+      "type": "object",
+      "description": "A Layer 1 (query) tool call. The `query` half of assert_state / success_criteria.",
+      "properties": {
+        "tool": {
+          "type": "string",
+          "description": "Name of a Layer 1 query tool (e.g. list_windows, get_window_contents, list_widgets, get_element_tree). MUST be a tool the caller is authorized to invoke."
+        },
+        "args": {
+          "type": "object",
+          "description": "Arguments matching that tool's inputSchema (CONTRACT-003).",
+          "default": {}
+        }
+      },
+      "required": ["tool"],
+      "additionalProperties": false
+    },
+
+    "expect": {
+      "type": "object",
+      "description": "Closed match-language over a Layer 1 query's output (ADR-0005). Pure function of (query_output, expect); no code execution; no regex. All present keys must hold (logical AND); `where` is applied first.",
+      "properties": {
+        "where": {
+          "type": "object",
+          "description": "Filter query output to rows whose value at each JSON Pointer deep-equals the given value, BEFORE the other keys are evaluated. Keys are JSON Pointers (RFC 6901) relative to the output (e.g. '/windows/0'). Optional.",
+          "patternProperties": {
+            "^/": {}
+          },
+          "additionalProperties": false
+        },
+        "exists": {
+          "type": "boolean",
+          "description": "true  => the query produced a non-empty result (a non-empty list, or a present node). false => the query produced an empty/absent result."
+        },
+        "count": {
+          "description": "Assert the length of the (post-`where`) list output. Either an exact integer or an inclusive range.",
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            {
+              "type": "object",
+              "properties": { "min": { "type": "integer", "minimum": 0 }, "max": { "type": "integer", "minimum": 0 } },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "field_eq": {
+          "type": "object",
+          "description": "Each JSON Pointer key MUST resolve, and its value deep-equals the given value (deep-equal for object/array, scalar-equal otherwise). Keys are JSON Pointers (RFC 6901) relative to the (post-`where`) output.",
+          "patternProperties": {
+            "^/": {}
+          },
+          "additionalProperties": false
+        },
+        "text_contains": {
+          "description": "Substring(s) that MUST all be present in the query output rendered to text (the `markdown`/`detail` field, or the JSON serialized for tools without a text field). AND over array elements; case-sensitive.",
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "$comment": "At least one of {exists, count, field_eq, text_contains} MUST be present (enforced via minProperties below where this is referenced as the success_criteria.expect). `where` alone does not assert anything."
+    },
+
+    "element_id": {
+      "type": "string",
+      "description": "An element-id per CONTRACT-001 v0.2.0. We validate the STRUCTURE (a known <type>, then ': ', then a non-empty path) but NOT the inner path characters: CONTRACT-001 rule 2/4 + its Type-table examples nest element-ids inside paths (el:win:42/menubar/file, act:wgt:desktop/clock/rotate), which the formal <segment>=[A-Za-z0-9_.-]+ grammar cannot express. See ADR-0005 §Open issue for D. The path must not be empty and must not contain whitespace.",
+      "pattern": "^(desktop|win|el|wgt|act|cap):\\S+$"
+    },
+
+    "success_criteria": {
+      "type": "object",
+      "description": "The verify contract. The subagent runs `query`, then assert_state matches the output against `expect`. status=success REQUIRES assert pass (ADR-0005 status mapping). MUST be DE-observable, never subjective.",
+      "properties": {
+        "query": { "$ref": "#/$defs/layer1_query" },
+        "expect": {
+          "allOf": [
+            { "$ref": "#/$defs/expect" },
+            {
+              "description": "A criteria MUST actually assert something: at least one of the four assert keys is required. `where` alone filters but asserts nothing (ADR-0005).",
+              "anyOf": [
+                { "required": ["exists"] },
+                { "required": ["count"] },
+                { "required": ["field_eq"] },
+                { "required": ["text_contains"] }
+              ]
+            }
+          ]
+        }
+      },
+      "required": ["query", "expect"]
+    }
+  },
 
   "delegate_task_input": {
     "type": "object",
-    "description": "Tool call the main agent makes to spawn an ephemeral, scoped subagent.",
+    "description": "Tool call the main agent makes to spawn an ephemeral, scoped subagent. The subagent MUST call assert_state with success_criteria before emitting status=success.",
     "properties": {
-      "goal": { "type": "string", "description": "Operational, DE-verifiable objective (never subjective)." },
-      "success_criteria": {
-        "type": "object",
-        "description": "The verify contract. assert_state(query, expect) must pass for the subagent to emit status=success.",
-        "properties": {
-          "query": { "type": "object", "description": "A Layer 1 tool call: {tool, args}." },
-          "expect": { "type": "object", "description": "Structured match or predicate over query output." }
-        },
-        "required": ["query", "expect"]
+      "goal": {
+        "type": "string",
+        "description": "Operational, DE-verifiable objective. NEVER subjective ('looks good'); phrased so success_criteria can prove it."
       },
+      "success_criteria": { "$ref": "#/$defs/success_criteria" },
       "tools": {
         "type": "array",
         "items": { "type": "string" },
-        "description": "Whitelist of MCP tool names the subagent may call (least privilege)."
+        "description": "Whitelist of MCP tool names the subagent MAY call (least privilege). MUST include the success_criteria.query.tool, or the subagent cannot self-verify."
       },
-      "model_hint": { "type": "string", "enum": ["small", "large"], "default": "small" },
+      "model_hint": {
+        "type": "string",
+        "enum": ["small", "large"],
+        "default": "small",
+        "description": "Routing hint. small=qwen2.5:3b triage; large=the 8B (per C-002)."
+      },
       "max_turns": { "type": "integer", "minimum": 1, "default": 12 }
     },
     "required": ["goal", "success_criteria", "tools"]
@@ -39,25 +130,69 @@
 
   "subagent_result_envelope": {
     "type": "object",
-    "description": "Schema-validated result the subagent emits. Its context is then DROPPED; only this object enters the main context.",
+    "description": "Schema-validated result the subagent emits. Its context is then DROPPED; ONLY this object enters the main context. status↔assert mapping is pinned by ADR-0005.",
     "properties": {
-      "status": { "type": "string", "enum": ["success", "failed", "blocked"] },
-      "summary": { "type": "string", "description": "1-3 lines. What was achieved (or why not)." },
+      "status": {
+        "type": "string",
+        "enum": ["success", "failed", "blocked"],
+        "description": "success => assert_state pass=true. failed => assert ran and returned pass=false, OR a tool/verify error. blocked => turn/token cap (max_turns) hit, OR a required capability/tool was absent."
+      },
+      "summary": {
+        "type": "string",
+        "description": "1-3 lines. What was achieved (or why not). The ONLY free-text that enters the main context."
+      },
+      "reason": {
+        "type": "string",
+        "description": "REQUIRED when status ∈ {failed, blocked}. Machine-categorizable short cause (e.g. 'assert_failed', 'tool_error', 'turn_cap', 'capability_absent')."
+      },
       "changes": {
         "type": "array",
+        "description": "DE-observable before/after per affected element. Empty for read-only subagents.",
         "items": {
           "type": "object",
-          "properties": { "element_id": { "type": "string" }, "before": { "type": ["string", "null"] }, "after": { "type": ["string", "null"] } },
+          "properties": {
+            "element_id": { "$ref": "#/$defs/element_id" },
+            "before": { "type": ["string", "null"] },
+            "after": { "type": ["string", "null"] }
+          },
           "required": ["element_id"]
         }
       },
       "evidence": {
         "type": "object",
-        "description": "Reference to the assert_state pass. Logged in JSONL; NOT injected into main context by default.",
-        "properties": { "query_id": { "type": "string" }, "snapshot_ref": { "type": "string" } }
+        "description": "Reference to the assert_state run that backs this result. Logged in JSONL (CONTRACT-005); NOT injected into the main context by default. Field set mirrors assert_state output (CONTRACT-003).",
+        "properties": {
+          "pass": { "type": "boolean", "description": "assert_state pass flag (field name mirrors CONTRACT-003 assert_state.output). MUST equal (status == 'success')." },
+          "snapshot_ref": { "type": "string", "description": "assert_state snapshot_ref; correlates this run to a JSONL record / HITL viewer frame." },
+          "diff": { "type": ["string", "null"], "description": "assert_state diff (human-readable expectation gap) when pass=false; null/absent on success." }
+        },
+        "required": ["pass", "snapshot_ref"]
       },
-      "tokens_used": { "type": "integer" }
+      "tokens_used": { "type": "integer", "description": "Total tokens consumed by the subagent's dropped context. Budget signal." }
     },
-    "required": ["status", "summary", "tokens_used"]
+    "required": ["status", "summary", "tokens_used"],
+    "allOf": [
+      {
+        "if": { "properties": { "status": { "enum": ["failed", "blocked"] } }, "required": ["status"] },
+        "then": { "required": ["reason"] },
+        "$comment": "A failed/blocked result MUST carry a reason."
+      },
+      {
+        "if": { "properties": { "status": { "const": "success" } }, "required": ["status"] },
+        "then": {
+          "properties": { "evidence": { "required": ["pass"] } },
+          "$comment": "A success result MUST carry evidence.pass == true (ADR-0005)."
+        }
+      }
+    ]
+  },
+
+  "$comment_status_mapping": {
+    "source": "ADR-0005",
+    "rules": [
+      "assert pass                                  => subagent MAY emit status=success (evidence.pass == true)",
+      "assert ran, pass=false  OR  tool/verify error => status=failed  (reason REQUIRED)",
+      "max_turns hit  OR  required capability absent => status=blocked (reason REQUIRED)"
+    ]
   }
 }
