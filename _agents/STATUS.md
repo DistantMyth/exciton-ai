@@ -4,16 +4,16 @@
 > FIRST, then `masterplan.md`, then your `roles/<role>.md`, then `BACKLOG.md`. Update this file
 > when a PR lands, a contract is signed, or the gate moves. Date every change.
 
-**Last updated:** 2026-06-23 by @tarun
+**Last updated:** 2026-06-24 by @tarun
 
 ---
 
 ## TL;DR (relay this to a new joiner)
 
-- **Phase 0 (the contract gate) is PARTIALLY open.** CONTRACT-001 is signed and in review.
-  Contracts 002–006 are still DRAFT — each owner must finalize theirs before component code ships.
-- **Contracts can start in parallel now.** No strict order among them (one soft coupling:
-  CONTRACT-003 ↔ CONTRACT-004 share the `assert_state` shape; B & C co-finalize).
+- **Phase 0 (the contract gate) is HALF open — 3 / 6 signed.** CONTRACT-001 (v0.2.0), 002, 006
+  are merged. Remaining: CONTRACT-003 + 005 (@srujan), CONTRACT-004 (@rohan).
+- **Contracts 003/004/005 can start in parallel now.** One soft coupling: CONTRACT-003 ↔ 004
+  share the `assert_state(query, expect)` shape; B & C co-finalize.
 - **Build chain is ready.** `harness/build-forks.sh` builds the 3-fork chain against the system
   packages — verified building on this box (libplasma 485/485, plasma-workspace configures). No
   kdesrc-build needed here.
@@ -26,16 +26,21 @@
 
 | Contract | File | Author | Consumer | Status | Where |
 |----------|------|--------|----------|--------|-------|
-| 001 | element-ids.md | D (drives) | all | **REVIEW** — signed by D, pending team ack | PR #1 |
-| 002 | plasma-dbus.xml | A | B | DRAFT — needs A to finalize | docs/contracts/ |
+| 001 | element-ids.md | D (drives) | all | **SIGNED v0.2.0** — opaque `win:`; `cap:` type + two-form `act:` (ADR-0003) | merged PR #1/#5 |
+| 002 | plasma-dbus.xml | A | B | **SIGNED** — full method set, JSON error model, depth enum | merged PR #5 |
 | 003 | mcp-tools.json | B | C | DRAFT — needs B to finalize | docs/contracts/ |
 | 004 | delegate-task.schema.json | C | B, D | DRAFT — needs C to finalize | docs/contracts/ |
 | 005 | log.jsonl.schema | B | D | DRAFT — needs B to finalize | docs/contracts/ |
-| 006 | capability-registry.schema.json | A | B | DRAFT — needs A to finalize | docs/contracts/ |
+| 006 | capability-registry.schema.json | A | B | **SIGNED** — root JSON-Schema; cap:/act: stable ids | merged PR #5 |
 
-**CONTRACT-001 decision of record:** `win:` IDs are **opaque numeric handles** (`win:42`); app
-identity is a separate `app` field. Full rationale in `element-ids.md` § DECISION. All other
-contracts use this ID scheme (`win:`, `wgt:`, `el:`, `act:`).
+**Progress: 3 / 6 signed.** Remaining gate work: CONTRACT-003 + 005 (@srujan), CONTRACT-004 (@rohan).
+
+**CONTRACT-001 v0.2.0 decisions of record:**
+- `win:` IDs are **opaque numeric handles** (`win:42`); app identity is a separate `app` field.
+- `cap:` IDs name **capability classes** (`cap:draggable`), from the registry (CONTRACT-006).
+- `act:` has **two forms**: registry template (`act:rotate`) vs per-instance ref
+  (`act:wgt:desktop/clock/rotate`, the `invoke_action` form).
+Full rationale in `element-ids.md` § DECISION + § AMENDMENT, and ADR-0003.
 
 ---
 
@@ -43,8 +48,7 @@ contracts use this ID scheme (`win:`, `wgt:`, `el:`, `act:`).
 
 | # | Branch | Owner | What |
 |---|--------|-------|------|
-| [#1](https://github.com/DistantMyth/exciton-ai/pull/1) | feat/D-CONTRACT-001 | @tarun | CONTRACT-001: opaque `win:` handles; element-ids.md signed |
-| [#2](https://github.com/DistantMyth/exciton-ai/pull/2) | feat/D-001 | @tarun | 3-fork build chain (kdesrc-buildrc + build-forks.sh + prerequisites) |
+| [#5](https://github.com/DistantMyth/exciton-ai/pull/5) | feat/A-CONTRACT-002-006 | @anuj + @tarun | **MERGED** — CONTRACT-002 + CONTRACT-006 + CONTRACT-001 v0.2.0 amendment |
 
 ---
 

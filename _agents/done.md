@@ -5,5 +5,8 @@
 
 ---
 
-- 2026-06-21 SCAFFOLD — initial workspace scaffolded (_agents/, docs/contracts/, harness/, mcp-server/, orchestrator/) in exciton-ai hub repo per ADR-0002 — @tarun — (this PR)
+- 2026-06-24 CONTRACT-002 — plasma-dbus.xml finalized (org.kde.PlasmaShell.Introspect: listContainments/appletInfo/appletActions/appletCapabilities/appletDescribe/appletTransform/globalCapabilities; JSON error model; depth enum) — @anuj — (PR #5)
+- 2026-06-24 CONTRACT-006 — capability-registry.schema.json finalized (root JSON-Schema draft 2020-12; cap:/act: stable ids; appletActions↔get_actions alignment) — @anuj — (PR #5)
+- 2026-06-24 CONTRACT-001 v0.2.0 — amended grammar to add `cap:` type + two-form `act:`; reconciled with CONTRACT-006 — @tarun — (PR #5, ADR-0003)
+- 2026-06-24 ADR-0003 — element-ID grammar: add `cap:` type + clarify two-form `act:` — @tarun
 - 2026-06-21 ADR-0002 — moved coordination hub out of Exciton into separate exciton-ai repo; Exciton reverted to clean plasma-desktop fork — @tarun
