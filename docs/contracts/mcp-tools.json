@@ -263,8 +263,14 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "query": { "type": "object", "$comment": "a Layer 1 tool call: {tool, args}" },
-          "expect": { "type": "object", "$comment": "structured match or predicate over query output" }
+          "query": {
+            "$ref": "https://raw.githubusercontent.com/DistantMyth/exciton-ai/feat/C-CONTRACT-004/docs/contracts/delegate-task.schema.json#/$defs/layer1_query",
+            "x-source-of-truth": "CONTRACT-004 ($defs/layer1_query), ADR-0005"
+          },
+          "expect": {
+            "$ref": "https://raw.githubusercontent.com/DistantMyth/exciton-ai/feat/C-CONTRACT-004/docs/contracts/delegate-task.schema.json#/$defs/expect",
+            "x-source-of-truth": "CONTRACT-004 ($defs/expect), ADR-0005"
+          }
         },
         "required": ["query", "expect"]
       },
